@@ -1,0 +1,316 @@
+---
+export interface Props {
+  type?: "sidenote" | "aside";
+}
+
+const { type = "sidenote" } = Astro.props;
+---
+
+<margin-note-wrapper data-type={type}>
+  {type === "sidenote" && (
+    <label class="margin-note-number" tabindex="0" role="button" aria-label="Toggle sidenote"></label>
+  )}
+  <span class="margin-note-content">
+    <slot />
+  </span>
+</margin-note-wrapper>
+
+<script>
+  function setupMobileFootnotes() {
+    if (window.innerWidth >= 1350) return;
+
+    const contentColumn = document.querySelector("content-column");
+    if (!contentColumn) return;
+
+    const existingSidenotes = document.getElementById("collected-sidenotes");
+    const existingAsides = document.getElementById("collected-asides");
+
+    if (existingSidenotes) existingSidenotes.remove();
+    if (existingAsides) existingAsides.remove();
+
+    const sidenotes = document.querySelectorAll("margin-note-wrapper[data-type='sidenote']");
+
+    if (sidenotes.length > 0) {
+      const sidenotesSection = document.createElement("section");
+      sidenotesSection.id = "collected-sidenotes";
+      sidenotesSection.innerHTML = "<h2>Notes</h2>";
+
+      const notesList = document.createElement("ol");
+      notesList.className = "footnotes-list";
+
+      sidenotes.forEach((wrapper, index) => {
+        const content = wrapper.querySelector(".margin-note-content");
+        const number = wrapper.querySelector(".margin-note-number");
+
+        if (content && number) {
+          const refId = `fnref-${index + 1}`;
+          number.id = refId;
+
+          const li = document.createElement("li");
+          const noteId = `footnote-${index + 1}`;
+          li.id = noteId;
+
+          const backLink = document.createElement("a");
+          backLink.href = `#${refId}`;
+          backLink.className = "footnote-backlink";
+          backLink.setAttribute("aria-label", "Back to reference");
+          backLink.textContent = "↩";
+
+          li.appendChild(backLink);
+          const contentSpan = document.createElement("span");
+          contentSpan.innerHTML = content.innerHTML;
+          li.appendChild(contentSpan);
+
+          notesList.appendChild(li);
+
+          number.addEventListener("click", (e) => {
+            e.preventDefault();
+            li.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            li.style.backgroundColor = "#fff5e6";
+            setTimeout(() => {
+              li.style.backgroundColor = "";
+            }, 2000);
+          });
+
+          backLink.addEventListener("click", (e) => {
+            e.preventDefault();
+            number.scrollIntoView({ behavior: "smooth", block: "center" });
+            number.style.backgroundColor = "#fff5e6";
+            setTimeout(() => {
+              number.style.backgroundColor = "";
+            }, 2000);
+          });
+        }
+      });
+
+      sidenotesSection.appendChild(notesList);
+      contentColumn.appendChild(sidenotesSection);
+    }
+
+    const asides = document.querySelectorAll("margin-note-wrapper[data-type='aside']");
+
+    if (asides.length > 0) {
+      const asidesSection = document.createElement("section");
+      asidesSection.id = "collected-asides";
+      asidesSection.innerHTML = "<h2>Asides</h2>";
+
+      const asidesContainer = document.createElement("div");
+      asidesContainer.className = "asides-container";
+
+      asides.forEach((wrapper) => {
+        const content = wrapper.querySelector(".margin-note-content");
+        if (content) {
+          const asideDiv = document.createElement("div");
+          asideDiv.className = "aside-item";
+          asideDiv.innerHTML = content.innerHTML;
+          asidesContainer.appendChild(asideDiv);
+        }
+      });
+
+      asidesSection.appendChild(asidesContainer);
+      contentColumn.appendChild(asidesSection);
+    }
+  }
+
+  setupMobileFootnotes();
+
+  let resizeTimeout: number;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeTimeout);
+    resizeTimeout = window.setTimeout(setupMobileFootnotes, 250);
+  });
+</script>
+
+<style>
+  margin-note-wrapper[data-type="sidenote"] .margin-note-number {
+    counter-increment: sidenote-counter;
+  }
+
+  margin-note-wrapper[data-type="sidenote"] .margin-note-number::after {
+    content: counter(sidenote-counter);
+    vertical-align: super;
+    font-size: 0.7em;
+    color: #b71c1c;
+    cursor: pointer;
+    margin-right: 2px;
+    padding: 2px 4px;
+    border-radius: 3px;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  margin-note-wrapper[data-type="sidenote"] .margin-note-number:hover::after,
+  margin-note-wrapper[data-type="sidenote"] .margin-note-number:focus::after {
+    background-color: #b71c1c;
+    color: white;
+    outline: none;
+  }
+
+  @media (min-width: 1350px) {
+    margin-note-wrapper {
+      position: relative;
+    }
+
+    .margin-note-content {
+      float: right;
+      clear: right;
+      width: 250px;
+      margin-right: -320px;
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+      background-color: #FFFFF0;
+      border: 4px double black;
+      padding: 1rem;
+      box-shadow: 4px 4px 0px rgba(0,0,0,0.1);
+      box-sizing: border-box;
+      position: relative;
+      transition: background-color 0.3s ease, box-shadow 0.3s ease;
+      z-index: 1;
+    }
+
+    .margin-note-content a {
+      color: #b71c1c;
+      text-decoration: underline;
+      text-decoration-color: #b71c1c;
+      text-decoration-thickness: 2px;
+      transition: background-color 0.2s ease;
+    }
+
+    .margin-note-content a:hover {
+      background-color: #fff5e6;
+    }
+
+    margin-note-wrapper + margin-note-wrapper .margin-note-content {
+      margin-top: 0.5rem;
+    }
+
+    margin-note-wrapper[data-type="sidenote"] .margin-note-number:hover ~ .margin-note-content,
+    margin-note-wrapper[data-type="sidenote"] .margin-note-number:focus ~ .margin-note-content {
+      background-color: #fff5e6;
+      box-shadow: 6px 6px 0px rgba(183, 28, 28, 0.2);
+      z-index: 10;
+    }
+
+    margin-note-wrapper[data-type="aside"] .margin-note-content {
+      background-color: #FFFFF0;
+    }
+
+    margin-note-wrapper:nth-of-type(n+5) .margin-note-content {
+      margin-bottom: 1.5rem;
+    }
+
+    margin-note-wrapper {
+      margin-bottom: 0.5rem;
+    }
+  }
+
+  @media (max-width: 1349px) {
+    .margin-note-content {
+      display: none;
+    }
+
+    margin-note-wrapper[data-type="sidenote"] .margin-note-number::after {
+      content: "[" counter(sidenote-counter) "]";
+      vertical-align: baseline;
+      font-size: 0.85em;
+    }
+
+    margin-note-wrapper[data-type="aside"] .margin-note-number {
+      display: none;
+    }
+  }
+
+  .margin-note-number {
+    display: inline;
+  }
+
+  .margin-note-number:focus {
+    outline: 2px solid #b71c1c;
+    outline-offset: 2px;
+  }
+</style>
+
+<style is:global>
+  @media (max-width: 1349px) {
+    #collected-sidenotes,
+    #collected-asides {
+      margin-top: 3rem;
+      padding-top: 2rem;
+      border-top: 4px double black;
+    }
+
+    #collected-sidenotes h2,
+    #collected-asides h2 {
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .footnotes-list {
+      list-style-position: outside;
+      padding-left: 2rem;
+    }
+
+    .footnotes-list li {
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+      transition: background-color 0.3s ease;
+      padding: 0.5rem;
+      border-radius: 4px;
+      position: relative;
+    }
+
+    .footnotes-list li a,
+    .aside-item a {
+      color: #b71c1c;
+      text-decoration: underline;
+      text-decoration-color: #b71c1c;
+      text-decoration-thickness: 2px;
+      transition: background-color 0.2s ease;
+    }
+
+    .footnotes-list li a:hover,
+    .aside-item a:hover {
+      background-color: #fff5e6;
+    }
+
+    .footnote-backlink {
+      color: #b71c1c;
+      text-decoration: none;
+      margin-right: 0.5rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+      padding: 2px 4px;
+      border-radius: 3px;
+    }
+
+    .footnote-backlink:hover {
+      background-color: #b71c1c;
+      color: white;
+    }
+
+    .asides-container {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .aside-item {
+      font-size: 0.9rem;
+      background-color: #FFFFF0;
+      border: 4px double black;
+      padding: 1rem;
+      box-shadow: 4px 4px 0px rgba(0,0,0,0.1);
+    }
+  }
+
+  @media (min-width: 1350px) {
+    #collected-sidenotes,
+    #collected-asides {
+      display: none;
+    }
+  }
+
+  content-column {
+    counter-reset: sidenote-counter;
+  }
+</style>

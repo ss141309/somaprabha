@@ -1,0 +1,298 @@
+---
+const { headings } = Astro.props;
+
+const counters = new Array(6).fill(0);
+const minDepth = headings.length > 0 ? Math.min(...headings.map((h) => h.depth)) : 1;
+
+const numberedHeadings = headings.map((heading) => {
+  const depthIndex = heading.depth - 1;
+  counters[depthIndex]++;
+  counters.fill(0, depthIndex + 1);
+  const numberLabel = counters.slice(minDepth - 1, heading.depth).join('.');
+
+  return { ...heading, numberLabel };
+});
+---
+
+<toc-sidebar>
+  <aside id="toc-sidebar">
+    <div class="toc-header">
+      <h3>Table of Contents</h3>
+      <button id="toc-toggle" aria-label="Toggle Table of Contents">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="18 15 12 9 6 15"></polyline>
+        </svg>
+      </button>
+    </div>
+
+    <div class="toc-wrapper">
+      <nav id="toc-content">
+        <ul>
+          {numberedHeadings.map((heading) => (
+            <li class={`depth-${heading.depth}`}>
+              <a href={`#${heading.slug}`}>
+                <span class="toc-number">{heading.numberLabel}.</span>
+                <span class="toc-text">{heading.text}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    </div>
+  </aside>
+</toc-sidebar>
+
+<script>
+  class TOCSidebar extends HTMLElement {
+    constructor() {
+      super();
+      this.observer = null;
+      this.headings = [];
+      this.ticking = false;
+      this.isClicking = false;
+      this.clickTimeout = null;
+    }
+
+    connectedCallback() {
+      const toggleBtn = this.querySelector("#toc-toggle");
+      const sidebar = this.querySelector("#toc-sidebar");
+      toggleBtn?.addEventListener("click", () => {
+        sidebar.classList.toggle("closed");
+      });
+
+      this.initObserver();
+    }
+
+    disconnectedCallback() {
+      if (this.observer) this.observer.disconnect();
+    }
+
+    initObserver() {
+      const tocLinks = this.querySelectorAll("#toc-content a");
+      if (!tocLinks.length) return;
+      const idToLinkMap = new Map();
+      tocLinks.forEach(link => {
+        const id = link.getAttribute("href").substring(1);
+        idToLinkMap.set(id, link);
+
+        link.addEventListener("click", (e) => {
+          this.handleLinkClick(id, idToLinkMap);
+        });
+
+        const section = document.getElementById(id);
+        if (section) this.headings.push(section);
+      });
+      const observerOptions = {
+        root: null,
+        rootMargin: "-100px 0px -20% 0px",
+        threshold: [0, 1.0]
+      };
+      this.observer = new IntersectionObserver((entries) => {
+        if (this.isClicking) return;
+
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+             this.setActive(entry.target.id, idToLinkMap);
+          }
+        });
+      }, observerOptions);
+      this.headings.forEach((h) => this.observer.observe(h));
+
+      window.addEventListener("scroll", () => {
+        if (!this.ticking && !this.isClicking) {
+          window.requestAnimationFrame(() => {
+            if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 50) {
+               const lastId = this.headings[this.headings.length - 1].id;
+               this.setActive(lastId, idToLinkMap);
+            } else if (window.scrollY < 100) {
+               const firstId = this.headings[0].id;
+               this.setActive(firstId, idToLinkMap);
+            }
+            this.ticking = false;
+          });
+          this.ticking = true;
+        }
+      });
+    }
+
+    handleLinkClick(id, map) {
+      this.setActive(id, map);
+      this.isClicking = true;
+      if (this.clickTimeout) clearTimeout(this.clickTimeout);
+      this.clickTimeout = setTimeout(() => {
+        this.isClicking = false;
+      }, 1000);
+    }
+
+    setActive(id, map) {
+      map.forEach(link => link.classList.remove("active"));
+      const link = map.get(id);
+      if (link) link.classList.add("active");
+    }
+  }
+
+  customElements.define("toc-sidebar", TOCSidebar);
+</script>
+
+<style>
+  aside {
+      box-sizing: border-box;
+      position: fixed;
+      top: 2rem;
+      left: 2rem;
+      width: 280px;
+      z-index: 100;
+      background-color: #FFFFF0;
+      border: 4px double black;
+      padding: 0 1rem;
+      box-shadow: 4px 4px 0px rgba(0,0,0,0.1);
+      display: grid;
+      grid-template-rows: auto 1fr;
+      transition: all 0.3s ease;
+      max-height: calc(100vh - 4rem);
+      overflow: hidden;
+  }
+
+  aside.closed {
+      box-shadow: none;
+      border-color: #333;
+  }
+
+  .toc-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 0;
+      cursor: pointer;
+      background: #FFFFF0;
+      z-index: 2;
+      border-bottom: 2px solid transparent;
+      transition: border-color 0.3s;
+  }
+
+  aside:not(.closed) .toc-header {
+  border-bottom: 2px solid #ddd;
+  }
+
+  h3 {
+      margin: 0;
+      font-size: 1.1rem;
+      font-family: "Castoro", serif;
+      color: #333;
+  }
+
+  #toc-toggle {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      padding: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #b71c1c;
+      transition: transform 0.3s ease;
+  }
+
+  #toc-toggle:hover {
+      color: #d32f2f;
+  }
+
+  aside.closed #toc-toggle svg {
+      transform: rotate(0deg);
+  }
+
+  aside:not(.closed) #toc-toggle svg {
+      transform: rotate(180deg);
+  }
+
+  .toc-wrapper {
+      overflow: hidden;
+      transition: all 0.3s ease-in-out;
+      opacity: 1;
+  }
+
+  aside.closed .toc-wrapper {
+      grid-template-rows: 0fr;
+      height: 0;
+      opacity: 0;
+  }
+
+  #toc-content {
+      padding: 1rem 0;
+      overflow-y: auto;
+      max-height: 60vh;
+  }
+
+  ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+  }
+
+  li {
+      margin-bottom: 0.5rem;
+      line-height: 1.3;
+  }
+
+  a {
+      text-decoration: none;
+      color: #444;
+      font-size: 0.95rem;
+      transition: all 0.2s;
+      display: flex; /* Changed to flex to align number and text */
+      align-items: baseline;
+      border-left: 2px solid transparent;
+      padding-left: 8px;
+      padding-top: 2px;
+  }
+
+  .toc-number {
+      margin-right: 0.5rem;
+      font-size: 0.85em;
+      color: #888;
+      flex-shrink: 0;
+  }
+
+  a:hover {
+      color: #b71c1c;
+  }
+
+  a:hover .toc-number {
+      color: #b71c1c;
+  }
+
+  :global(a.active) {
+      color: #b71c1c;
+      border-left: 4px solid #b71c1c;
+      background-color: rgba(183, 28, 28, 0.05);
+      font-weight: 600;
+  }
+
+  .depth-2 { padding-left: 0.5rem; }
+  .depth-3 { padding-left: 1.5rem; font-size: 0.9rem; }
+  .depth-4 { padding-left: 2.5rem; font-size: 0.85rem; }
+  .depth-5 { padding-left: 3.5rem; font-size: 0.85rem; }
+  .depth-6 { padding-left: 4.5rem; font-size: 0.8rem; }
+
+  toc-sidebar {
+      display: block;
+  }
+
+  @media (max-width: 1250px) {
+    aside {
+      position: relative;
+      top: auto;
+      left: auto;
+      width: 100%;
+      max-width: 100%;
+      max-height: none;
+      margin: 2rem 0;
+      z-index: 10;
+    }
+
+    #toc-content {
+      max-height: 300px;
+    }
+  }
+</style>

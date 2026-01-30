@@ -1,0 +1,100 @@
+---
+export interface Props {
+  author?: string;
+  canonicalUrl: string;
+  description: string;
+  keywords?: string;
+  title: string;
+}
+
+const {
+  author,
+  canonicalUrl,
+  description,
+  keywords,
+  title
+} = Astro.props;
+
+const twitterCard = "summary";
+const twitterSite = "@Sōmaprabʰa";
+const featuredImage = "../assets/logo/antelope.webp";
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+	  <meta charset="UTF-8" />
+	  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          {author && <meta name="author" content={author} />}
+	  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+	  <meta name="generator" content={Astro.generator} />
+	  <title>{title}</title>
+          <meta name="title" content={title} />
+          <meta name="description" content={description} />
+          {keywords && <meta name="keywords" content={keywords} />}
+          {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
+          <meta property="og:title" content={title} />
+          <meta property="og:description" content={description} />
+          {featuredImage && <meta property="og:image" content={featuredImage} />}
+          {twitterCard && <meta name="twitter:card" content={twitterCard} />}
+          <meta name="twitter:title" content={title} />
+          <meta name="twitter:description" content={description} />
+          {featuredImage && <meta name="twitter:image" content={featuredImage} />}
+          {twitterSite && <meta name="twitter:site" content={twitterSite} />}
+	</head>
+  <body>
+    <content-column>
+      <slot />
+    </content-column>
+  </body>
+</html>
+
+<style>
+  @font-face {
+      font-family: "Castoro";
+      src: url("/fonts/Castoro/Castoro-Regular.woff2") format("woff2");
+      font-weight: normal;
+      font-style: normal;
+      font-display: swap;
+  }
+
+  html, body {
+      scroll-behavior: smooth;
+      margin: 0;
+      background-color: #f9f2d0;
+      background-image: radial-gradient(#4a4a4a 1px, transparent 1px);
+      background-size: 4px 4px;
+      font-family: "Castoro", serif;
+  }
+
+  content-column {
+      display: block;
+      max-width: 800px;
+      margin: 0 auto;
+      background-color: #FFFFF0;
+      border: 6px double black;
+      min-height: 100vh;
+      padding: 2rem 3rem;
+      box-sizing: border-box;
+      position: relative;
+      counter-reset: sidenote-counter;
+  }
+
+  @media (max-width: 600px) {
+      content-column {
+          padding: 1.5rem 1.5rem;
+      }
+
+      content-column :global(h1) {
+          font-size: 1.5rem;
+      }
+
+      content-column :global(h2) {
+          font-size: 1.1rem;
+      }
+
+      content-column :global(h3) {
+          font-size: 0.8rem;
+      }
+  }
+</style>

@@ -1,0 +1,186 @@
+---
+import { Image } from "astro:assets";
+import { getCollection } from "astro:content";
+
+import Layout from "../../layouts/Layout.astro";
+import NavBar from "../../components/NavBar.astro";
+import Tags from "../../components/Tags.astro";
+import rss from "../../assets/rss.svg";
+
+const allPosts = await getCollection("blog");
+const title = "Blog - Sōmaprabʰa";
+const description = "Blog Archives";
+
+const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
+const rssUrl = new URL("rss.xml", `${Astro.site.href}blog/`);
+
+const sortedPosts = allPosts.sort((a, b) => {
+    return new Date(b.data.pubDate).valueOf() - new Date(a.data.pubDate).valueOf();
+});
+---
+
+<Layout
+  canonicalUrl={canonicalUrl}
+  description={description}
+  title={title}>
+
+  <NavBar />
+
+  <archive-header>
+    <h1>Archive</h1>
+    <a href={rssUrl} class="rss-link" title="Subscribe to RSS Feed">
+      <Image src={rss} alt="RSS logo" />
+    </a>
+  </archive-header>
+
+  <blog-list id="blog-archive">
+    {sortedPosts.map((post) => (
+      <blog-entry data-tags={JSON.stringify(post.data.tags || [])}>
+        <time datetime={post.data.pubDate.toISOString()} class="pub-date">
+          {post.data.pubDate.toLocaleDateString("en-GB", {
+              day: "2-digit", month: "2-digit", year: "numeric"
+          })}
+        </time>
+        <entry-body>
+          <a href={`/blog/${post.id}`}>{post.data.title}</a>
+          <Tags post={post} />
+        </entry-body>
+      </blog-entry>
+    ))}
+  </blog-list>
+
+  <div id="no-results" class="hidden-text">
+      <p>No posts found with those filters.</p>
+      <a href="/blog" class="clear-filters">Clear all filters</a>
+  </div>
+</Layout>
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const tagsParam = urlParams.get("tags");
+
+      if (!tagsParam) return;
+
+      const activeTags = new Set(tagsParam.split(","));
+      const entries = document.querySelectorAll("blog-entry");
+
+      let visibleCount = 0;
+      entries.forEach(entry => {
+          const postTags = JSON.parse(entry.dataset.tags);
+          const isMatch = Array.from(activeTags).every(selectedTag =>
+                                                      postTags.includes(selectedTag)
+          );
+
+          if (isMatch) {
+              entry.style.display = "flex";
+              visibleCount++;
+          } else {
+              entry.style.display = "none";
+          }
+      });
+
+      const noResultsMsg = document.getElementById("no-results");
+      if (visibleCount === 0) {
+          noResultsMsg.classList.remove("hidden-text");
+      } else {
+          noResultsMsg.classList.add("hidden-text");
+      }
+  });
+</script>
+
+<style>
+  archive-header {
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+  }
+
+  .rss-link {
+      color: black;
+      transition: color 0.2s ease;
+      line-height: 1;
+  }
+
+  .rss-link:hover {
+      color: #d32f2f;
+  }
+
+  .rss-link svg {
+      display: block;
+  }
+
+  blog-list {
+      display: block;
+      margin-top: 2rem;
+  }
+
+  blog-entry {
+      display: flex;
+      flex-direction: row;
+      align-items: baseline;
+      padding: 0.8rem 0;
+      border-bottom: 1px dashed #ccc;
+      transition: opacity 0.3s ease;
+  }
+
+  .pub-date {
+      display: block;
+      font-family: monospace;
+      color: #666;
+      min-width: 120px;
+      font-size: 0.9rem;
+  }
+
+  entry-body {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 1rem;
+      width: 100%;
+      flex-grow: 1;
+  }
+
+  entry-body a {
+      color: #222;
+      text-decoration: none;
+      font-weight: bold;
+      font-size: 1.1rem;
+  }
+
+  entry-body a:hover {
+      text-decoration: underline;
+      color: #d32f2f;
+  }
+
+  .hidden-text {
+      display: none !important;
+  }
+
+  #no-results {
+      text-align: center;
+      margin-top: 3rem;
+      color: #666;
+  }
+
+  .clear-filters {
+      display: inline-block;
+      margin-top: 0.5rem;
+      color: #b71c1c;
+      text-decoration: underline;
+  }
+
+  @media (max-width: 600px) {
+      blog-entry {
+          flex-direction: column;
+          gap: 0.25rem;
+      }
+
+      .pub-date {
+          min-width: auto;
+          font-size: 0.75rem;
+          letter-spacing: 0.05rem;
+          opacity: 0.7;
+      }
+  }
+</style>

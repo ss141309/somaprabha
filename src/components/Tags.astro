@@ -1,0 +1,153 @@
+---
+import { getCollection } from "astro:content";
+const { post } = Astro.props;
+---
+
+<tag-group id="post-tags">
+  {post.data.tags?.map((tag) => (
+  <button class="tag-pill" data-category={tag} data-id={post.id}>{tag}</button>
+  ))}
+</tag-group>
+
+<a id="search-fab" href="#" class="fab hidden">
+  <span class="fab-text">Search</span>
+  <span id="fab-count" class="fab-text">0</span>
+</a>
+
+<script>
+  const tagButtons = document.querySelectorAll(".tag-pill");
+  const fab = document.getElementById("search-fab");
+  const fabCount = document.getElementById("fab-count");
+
+  let selectedItems = new Map();
+
+  function toggleSelection(btn) {
+      const category = btn.dataset.category;
+      const id = btn.dataset.id;
+      const currentSelectionInCat = selectedItems.get(category);
+
+      if (currentSelectionInCat === id) {
+          selectedItems.delete(category);
+          btn.classList.remove("selected");
+      } else if (!selectedItems.has(category)) {
+          selectedItems.set(category, id);
+          btn.classList.add("selected");
+      }
+
+      updateFab();
+  }
+
+
+  function updateFab() {
+      const count = selectedItems.size;
+
+      if (count > 0) {
+          fab.classList.remove("hidden");
+          fabCount.textContent = count;
+
+          const tagsArray = Array.from(selectedItems.keys());
+
+          const params = new URLSearchParams();
+          params.set("tags", tagsArray.join(","));
+          fab.setAttribute("href", `/blog?${params.toString()}`);
+      } else {
+          fab.classList.add("hidden");
+      }
+  }
+
+  tagButtons.forEach(btn => {
+      btn.addEventListener("click", () => {
+          toggleSelection(btn);
+      });
+
+      btn.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+              e.preventDefault();
+
+              const category = btn.dataset.category;
+              const id = btn.dataset.id;
+
+              const isAlreadySelected = selectedItems.get(category) === id;
+
+              if (!isAlreadySelected) {
+                  toggleSelection(btn);
+              }
+
+              if (selectedItems.size > 0) {
+                  window.location.href = fab.getAttribute("href");
+              }
+          }
+      });
+  });
+</script>
+
+<style>
+  tag-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      padding: 0.5rem 0;
+  }
+
+  .tag-pill {
+      display: block;
+      background-color: #eee;
+      color: #444;
+      font-size: 0.75rem;
+      padding: 2px 6px;
+      border-radius: 0px;
+      border: 1px solid #ddd;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+  }
+
+  .tag-pill:hover {
+      background-color: #e0e0e0;
+      border-color: #bbb;
+  }
+
+  .tag-pill.selected {
+      background-color: #333;
+      color: #fff;
+      border-color: #333;
+  }
+
+  @media (max-width: 600px) {
+      .tag-pill {
+          font-size: 0.7rem;
+          padding: 4px 8px;
+      }
+  }
+
+  .fab {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      background-color: #b71c1c;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 0px;
+      border: 6px double black;
+      text-decoration: none;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      z-index: 100;
+      transform: scale(1);
+      transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.2s;
+  }
+
+  .fab:hover {
+      background-color: #d32f2f;
+      transform: scale(1.05);
+  }
+
+  .fab.hidden {
+      opacity: 0;
+      pointer-events: none;
+      transform: scale(0);
+  }
+</style>

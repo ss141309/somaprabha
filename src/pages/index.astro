@@ -1,17 +1,33 @@
 ---
+import { Image } from "astro:assets";
+import Layout from "../layouts/Layout.astro";
+import NavBar from "../components/NavBar.astro";
+import antelope from "../assets/logo/antelope.webp";
 
+const title = "Sōmaprabʰa";
+const description = "Personal Website of समीरसिंह";
+const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
 ---
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
-</html>
+<Layout
+  canonicalUrl={canonicalUrl}
+  description={description}
+  title={title}>
+
+  <NavBar />
+
+  <Image
+    src={antelope}
+    alt="An Antelope leaping with the moon in the background. The text in the bottom says, 'सोमप्रभ' in the गुप्तलिपि"
+    id="image-logo" />
+
+</Layout>
+
+<style>
+  #image-logo {
+      display: block;
+      margin: 0 auto;
+      max-width: 100%;
+      height: auto;
+  }
+</style>

@@ -1,0 +1,300 @@
+---
+title: "Writing a Gap Buffer Implementation in C"
+pubDate: 2024-06-16
+description: "Writing a gap buffer in C23 to learn manual memory management"
+tags:
+  - Programming
+  - Systems
+  - Text Editors
+  - Data Structure
+---
+
+import Centre from '../../src/components/Centre.astro';
+import MarginNote from '../../src/components/MarginNote.astro';
+
+# Motivation
+
+Summer break started a month ago, and it had been a long time since I
+coded something significant. I also wanted to improve my C skills
+since I never wrote anything involving manual memory management in
+it. Therefore I chose to write a gap buffer because it involves
+allocating memory to heap and also only requires about 100 lines of
+code for a barebones implementation.
+
+# What is a Gap Buffer
+
+Gap Buffers among other data structures like [piece
+table](https://en.wikipedia.org/wiki/Piece_table) and
+[rope](https://en.wikipedia.org/wiki/Rope_(data_structure)) are used
+in text editors to store text. GNU Emacs [famously uses gap
+buffer](https://git.savannah.gnu.org/cgit/emacs.git/tree/src/buffer.h#n226)
+to store its text, while piece table and rope are used by [VS
+Code](https://code.visualstudio.com/blogs/2018/03/23/text-buffer-reimplementation)
+and [Zed](https://zed.dev/blog/zed-decoded-rope-sumtree) respectively.
+
+Gap Buffer is the simplest data structure out of all of them. It
+consists of a `text_buffer` which is an array where the text is actually
+stored, a `gap_start` position which defines the gap offset and a
+`gap_len` which as the name suggests defines the length of the
+gap. Placing a "gap" inside an array helps in an efficient insertion
+and deletion of the text for localized edits.
+
+This is how the gap buffer is defined in the code base:
+```c
+typedef struct {
+    size buffer_size;
+    usize gap_start;
+    size gap_len;
+    size old_gap_len;
+
+    u8 data[];
+} GapBuffer;
+```
+
+Now the question arises that how does placing a gap inside an array
+makes insertion and deletion more efficient? To better understand this
+let us take up an example, Assume an array of size `10`, which contains
+the string `"hello"` inside it:
+
+<Centre>
+![an array with elements inside it](../../src/assets/images/gap-buffer/array.svg)
+</Centre>
+
+If we then try to insert `'1'` at index `1` of the array:
+
+<Centre>
+![an array with '1' inserted](../../src/assets/images/gap-buffer/array_1.svg)
+</Centre>
+
+You can see that we had to shift every element in front of `'1'`
+forward. This has to be done for every insertion and deletion we
+perform on this array. If we try to do the same operations in a **gap
+buffer**, it would result in, we first have to shift the gap in the
+position where the operation has to be performed:
+
+<Centre>
+![a gap buffer with gap in the middle](../../src/assets/images/gap-buffer/gapbuffer.svg)
+</Centre>
+
+We can now insert the characters
+
+<Centre>
+![a gap buffer with '1' inserted in the gap](../../src/assets/images/gap-buffer/gapbuffer_1.svg)
+</Centre>
+
+<Centre>
+![a gap buffer with '1' and '2' inserted in the gap](../../src/assets/images/gap-buffer/gapbuffer_2.svg)
+</Centre>
+
+<Centre>
+![a gap buffer with '1', '2' and '3' inserted in the gap](../../src/assets/images/gap-buffer/gapbuffer_3.svg)
+</Centre>
+
+Apart from the initial shifting of the gap, the subsequent inserts
+only took $\mathcal{O}(1)$ time.
+
+# Implementing a Gap Buffer
+
+## `GapBuffer_new`
+
+```c
+bool GapBuffer_new(GapBuffer **buffer, size req_size) {
+    const size max_size = (PTRDIFF_MAX - sizeof(GapBuffer))/sizeof(u8);
+    return_value_if(req_size > max_size, false, ERR_ARITHEMATIC_OVERFLOW);
+
+    *buffer = malloc(sizeof(GapBuffer) + req_size * sizeof(u8));
+
+    return_value_if(*buffer == NULL, false, ERR_OUT_OF_MEMORY);
+
+    (*buffer)->gap_start = 0;
+    (*buffer)->buffer_size = req_size;
+    (*buffer)->gap_len = req_size;
+    (*buffer)->old_gap_len = req_size;
+
+    return true;
+}
+```
+
+We start by allocating some arbitrary size for our gap buffer, we
+don't care what the size is as it can be increased later on. Right now
+the whole buffer is a gap with `gap_start` starting from index `0` and
+`gap_len` being the same size as `buffer_size`.
+
+<MarginNote type="aside">
+I have added overflow checks throughout the program, such as
+in line no. 3 in the `GapBuffer_new` function as suggested by Chris
+Wellons from nullprogram.com. I have also used the types and string
+representation as suggested by Chris in his blog [My personal C coding
+style as of late 2023](https://nullprogram.com/blog/2023/10/08/).
+</MarginNote>
+
+<MarginNote type="aside">
+The macro `return_value_if` is among the other error handling
+macros defined in `include/utils.h` which I took from
+[brightprogrammer's](https://brightprogrammer.in/) excellent
+[CrossFile](https://github.com/brightprogrammer/CrossFile/blob/master/Include/Anvie/Common.h#L89)
+library.
+</MarginNote>
+
+## `GapBuffer_insert`
+
+```c
+bool GapBuffer_insert(GapBuffer **buffer, const s8 string, usize position) {
+    return_value_if(expandGap(buffer, string.len) == false, false, ERR_OUT_OF_MEMORY);
+    shiftGapToPosition(*buffer, position);
+    memcpy((*buffer)->data + (*buffer)->gap_start, string.data, string.len);
+
+    (*buffer)->gap_start += string.len;
+    (*buffer)->gap_len -= string.len;
+
+    return true;
+}
+```
+
+This is one of the core functions of the library; you give it a string
+and a position and it will insert that string at the specified
+index. This is done by using the `memcpy` function, which is copying the
+contents of the string to the start of the gap buffer.
+
+But before we insert the string into the buffer we have to ensure that
+the gap length is big enough to fit the contents of the string and
+also if it is in the appropriate postion. This is done by the
+`expandGap` and `shiftGapToPosition` functions respectively.
+
+## `expandGap`
+
+```c
+static bool expandGap(GapBuffer **buffer, size str_len) {
+    const GapBuffer *orig_buffer = *buffer;
+
+    if (str_len <= orig_buffer->gap_len) {
+      (*buffer)->old_gap_len = (*buffer)->gap_len;
+      return true;
+    }
+
+    return_value_if(str_len > PTRDIFF_MAX / 2, false, ERR_ARITHEMATIC_OVERFLOW);
+    return_value_if(orig_buffer->buffer_size < 0 || orig_buffer->gap_len < 0, false,
+                    ERR_ARITHEMATIC_OVERFLOW);
+    return_value_if(orig_buffer->buffer_size - orig_buffer->gap_len > PTRDIFF_MAX / (2 * str_len),
+                    false, ERR_ARITHEMATIC_OVERFLOW);
+
+    const size req_size = (orig_buffer->buffer_size - orig_buffer->gap_len) + (2 * str_len);
+    const size max_size = (PTRDIFF_MAX - sizeof(GapBuffer))/sizeof(u8);
+    return_value_if(req_size > max_size, false, ERR_ARITHEMATIC_OVERFLOW);
+
+    GapBuffer *new_buffer = realloc(*buffer, sizeof(GapBuffer) + req_size * sizeof(u8));
+
+    if (new_buffer) {
+      new_buffer->buffer_size = req_size;
+      new_buffer->old_gap_len = new_buffer->gap_len;
+      new_buffer->gap_len = 2 * str_len;
+
+      *buffer = new_buffer;
+    } else {
+      return_value_if(new_buffer == NULL, false, ERR_OUT_OF_MEMORY);
+    }
+
+    return true;
+}
+```
+
+We check whether the length of the string to be inserted is less than
+the gap length or not, if it is we simply return from the
+function. The real work starts if the string length is bigger. We now
+have to calculate the new buffer size to accomodate the string, this
+is done by allocating double the string length to the buffer.
+
+```c
+const size req_size = (orig_buffer->buffer_size - orig_buffer->gap_len) + (2 * str_len);
+GapBuffer *new_buffer = realloc(*buffer, sizeof(GapBuffer) + req_size * sizeof(u8));
+```
+
+If the realloc is successful the buffer size and gap length are
+updated appropriately and now this new buffer is ready for use.
+
+## `shiftGapToPosition`
+
+```c
+static void shiftGapToPosition(GapBuffer *buffer, usize position) {
+    if (position == buffer->gap_start) {
+      return;
+    } else if (position < buffer->gap_start) {
+      const size num = (buffer->gap_start - position) * sizeof(u8);
+
+      memmove(buffer->data + buffer->gap_start + buffer->gap_len - num, buffer->data + position, num);
+    } else {
+      const size num = (position - buffer->gap_start) * sizeof(u8);
+
+      memmove(buffer->data + buffer->gap_start,
+              buffer->data + buffer->gap_start + buffer->old_gap_len, num);
+    }
+
+    buffer->gap_start = position;
+}
+```
+
+After expanding the gap, we have to make sure if it is at the correct
+position (the position where the string has to be inserted), if it is,
+we simply return from the function, this is what makes the text
+insertion $\mathcal{O}(1)$ if the gap is correctly placed.
+
+Apart from this we have two conditions which moves the gap either left
+or right as necessary.
+
+Now if you'll come closer, I will let you in on a secret. The gap in a
+gap buffer is not actually a gap ヽ(°〇°)ﾉ, I know right. There is text
+present in that slice of the array, the only thing that is different
+for this portion is that we can overwrite it. Just like how a deleted
+file is not physically removed from the storage, it is only marked as
+overwritable.
+
+So if we take our previous example
+
+<Centre>
+![a gap buffer with gap in the middle](../../src/assets/images/gap-buffer/gapbuffer.svg)
+</Centre>
+
+actually looks like
+
+<Centre>
+![gap buffer actual](../../src/assets/images/gap-buffer/gapbuffer_actual.svg)
+</Centre>
+
+with `gap_start=1` and `gap_len=5`
+
+## `GapBuffer_delete`
+
+This is also how we delete characters from the buffer, we just mark
+them as being a part of the gap.
+
+```c
+bool GapBuffer_delete(GapBuffer *buffer, usize position, size bytes) {
+    const size total_bytes = (buffer->buffer_size - buffer->gap_len) - position;
+    return_value_if(total_bytes < bytes, false, ERR_INVALID_SIZE);
+
+    shiftGapToPosition(buffer, position);
+    buffer->gap_len += bytes;
+
+    return true;
+}
+```
+
+## `GapBuffer_replace`
+
+With most of the fundamental operations implemented we can now create
+new functions by using them. Such as writing a replace which is just
+composed of `GapBuffer_delete` and `GapBuffer_insert` function.
+
+```c
+bool GapBuffer_replace(GapBuffer **buffer, const s8 string, usize position) {
+    return_value_if(GapBuffer_delete(*buffer, position, string.len) == false, false,
+                    ERR_INVALID_SIZE);
+    return_value_if(GapBuffer_insert(buffer, string, position) == false, false, ERR_OUT_OF_MEMORY);
+    return true;
+}
+```
+
+# Conclusion
+
+Hope you found this post interesting and also check out this
+[project](https://github.com/ss141309/gapbuffer) on github.
