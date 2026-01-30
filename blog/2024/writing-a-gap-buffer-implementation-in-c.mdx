@@ -11,6 +11,7 @@ tags:
 
 import Centre from '../../src/components/Centre.astro';
 import MarginNote from '../../src/components/MarginNote.astro';
+import AnimatedSVG from '../../src/components/AnimatedSVG.astro';
 
 # Motivation
 
@@ -62,33 +63,16 @@ the string `"hello"` inside it:
 
 If we then try to insert `'1'` at index `1` of the array:
 
-<Centre>
-![an array with '1' inserted](../../src/assets/images/gap-buffer/array_1.svg)
-</Centre>
+<AnimatedSVG folder="gap-buffer/inserting_1_in_array" />
 
 You can see that we had to shift every element in front of `'1'`
 forward. This has to be done for every insertion and deletion we
 perform on this array. If we try to do the same operations in a **gap
 buffer**, it would result in, we first have to shift the gap in the
-position where the operation has to be performed:
+position where the operation has to be performed and then insert the
+characters:
 
-<Centre>
-![a gap buffer with gap in the middle](../../src/assets/images/gap-buffer/gapbuffer.svg)
-</Centre>
-
-We can now insert the characters
-
-<Centre>
-![a gap buffer with '1' inserted in the gap](../../src/assets/images/gap-buffer/gapbuffer_1.svg)
-</Centre>
-
-<Centre>
-![a gap buffer with '1' and '2' inserted in the gap](../../src/assets/images/gap-buffer/gapbuffer_2.svg)
-</Centre>
-
-<Centre>
-![a gap buffer with '1', '2' and '3' inserted in the gap](../../src/assets/images/gap-buffer/gapbuffer_3.svg)
-</Centre>
+<AnimatedSVG folder="gap-buffer/inserting_in_gapbuffer" />
 
 Apart from the initial shifting of the gap, the subsequent inserts
 only took $\mathcal{O}(1)$ time.
